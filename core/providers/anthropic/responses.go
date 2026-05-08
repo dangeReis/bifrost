@@ -2019,7 +2019,23 @@ func ToAnthropicResponsesStreamResponse(ctx *schemas.BifrostContext, bifrostResp
 		}
 		// Convert usage from Bifrost to Anthropic
 		if bifrostResp.Response != nil {
-			anthropicContentDeltaEvent.Usage = ConvertBifrostUsageToAnthropicUsage(bifrostResp.Response.Usage)
+			if bifrostResp.Response.Usage != nil {
+				anthropicContentDeltaEvent.Usage = ConvertBifrostUsageToAnthropicUsage(bifrostResp.Response.Usage)
+			} else {
+				// Synthesize zero-usage when the upstream provider didn't include usage
+				// (e.g. NVIDIA sends usage in a separate chunk after the terminal event).
+				// The Anthropic SDK requires usage in message_delta.
+				anthropicContentDeltaEvent.Usage = &AnthropicUsage{
+					InputTokens:              0,
+					OutputTokens:             0,
+					CacheReadInputTokens:     0,
+					CacheCreationInputTokens: 0,
+					CacheCreation: AnthropicUsageCacheCreation{
+						Ephemeral5mInputTokens: 0,
+						Ephemeral1hInputTokens: 0,
+					},
+				}
+			}
 			if bifrostResp.Response.StopReason != nil {
 				anthropicContentDeltaEvent.Delta = &AnthropicStreamDelta{
 					StopReason:   schemas.Ptr(ConvertBifrostFinishReasonToAnthropic(*bifrostResp.Response.StopReason)),
