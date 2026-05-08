@@ -176,7 +176,8 @@ func BuildAnthropicResponsesRequestBody(ctx *schemas.BifrostContext, request *sc
 			return nil, newErr(schemas.ErrProviderRequestMarshal, err, jsonBody)
 		}
 
-		if cfg.RemapToolVersions {
+		disableToolRemap, _ := ctx.Value(schemas.BifrostContextKeyDisableToolRemapping).(bool)
+		if cfg.RemapToolVersions && !disableToolRemap {
 			// request.Model is the alias-resolved model id; pass it so
 			// computer-use / text-editor / bash tools get normalized to the
 			// canonical {type, name} pair Anthropic expects for the model's generation.

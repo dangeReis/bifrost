@@ -520,19 +520,20 @@ func (provider *VertexProvider) ChatCompletion(ctx *schemas.BifrostContext, key 
 	}
 
 	// Remap unsupported tool versions for Vertex (handles raw passthrough bodies)
-	if schemas.IsAnthropicModel(request.Model) && jsonBody != nil {
+	disableToolRemap, _ := ctx.Value(schemas.BifrostContextKeyDisableToolRemapping).(bool)
+	if schemas.IsAnthropicModel(request.Model) && jsonBody != nil && !disableToolRemap {
 		remappedBody, remapErr := anthropic.RemapRawToolVersionsForProvider(jsonBody, schemas.Vertex, request.Model)
 		if remapErr != nil {
 			return nil, providerUtils.NewBifrostOperationError(remapErr.Error(), nil)
 		}
 		jsonBody = remappedBody
+	}
 
-		// Strip unsupported body fields for Vertex — covers both structured and raw passthrough paths.
-		var stripErr error
-		jsonBody, stripErr = anthropic.StripUnsupportedFieldsFromRawBody(jsonBody, schemas.Vertex, request.Model)
-		if stripErr != nil {
-			return nil, providerUtils.NewBifrostOperationError(stripErr.Error(), nil)
-		}
+	// Strip unsupported body fields for Vertex — covers both structured and raw passthrough paths.
+	var stripErr error
+	jsonBody, stripErr = anthropic.StripUnsupportedFieldsFromRawBody(jsonBody, schemas.Vertex, request.Model)
+	if stripErr != nil {
+		return nil, providerUtils.NewBifrostOperationError(stripErr.Error(), nil)
 	}
 
 	// Auth query is used for fine-tuned models to pass the API key in the query string
@@ -795,10 +796,13 @@ func (provider *VertexProvider) ChatCompletionStream(ctx *schemas.BifrostContext
 
 		// Remap unsupported tool versions for Vertex streaming (handles raw passthrough bodies)
 		if jsonData != nil {
-			var remapErr error
-			jsonData, remapErr = anthropic.RemapRawToolVersionsForProvider(jsonData, schemas.Vertex, request.Model)
-			if remapErr != nil {
-				return nil, providerUtils.NewBifrostOperationError(remapErr.Error(), nil)
+			disableToolRemap, _ := ctx.Value(schemas.BifrostContextKeyDisableToolRemapping).(bool)
+			if schemas.IsAnthropicModel(request.Model) && !disableToolRemap {
+				var remapErr error
+				jsonData, remapErr = anthropic.RemapRawToolVersionsForProvider(jsonData, schemas.Vertex, request.Model)
+				if remapErr != nil {
+					return nil, providerUtils.NewBifrostOperationError(remapErr.Error(), nil)
+				}
 			}
 
 			// Strip unsupported body fields for Vertex — covers both structured and raw passthrough paths.

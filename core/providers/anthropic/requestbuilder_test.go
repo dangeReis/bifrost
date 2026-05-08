@@ -735,4 +735,39 @@ func TestBuildAnthropicResponsesRequestBody_RemapToolVersions(t *testing.T) {
 			t.Error("expected tool type to be remapped from web_search_20260209")
 		}
 	})
+
+	t.Run("raw_path_skips_tool_remapping_when_disabled", func(t *testing.T) {
+		ctx := schemas.NewBifrostContext(nil, time.Time{})
+		ctx.SetValue(schemas.BifrostContextKeyUseRawRequestBody, true)
+		ctx.SetValue(schemas.BifrostContextKeyDisableToolRemapping, true)
+
+		request := &schemas.BifrostResponsesRequest{
+			Provider:       schemas.Vertex,
+			Model:          "claude-sonnet-4-5",
+			RawRequestBody: []byte(`{"model":"claude-sonnet-4-5","max_tokens":1024,"tools":[{"type":"web_search_20260209","name":"web_search"}],"messages":[{"role":"user","content":"hello"}]}`),
+		}
+
+		result, err := BuildAnthropicResponsesRequestBody(ctx, request, AnthropicRequestBuildConfig{
+			Provider:          schemas.Vertex,
+			Deployment:        "claude-sonnet-4-5",
+			DeleteModelField:  true,
+			RemapToolVersions: true,
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		tools := providerUtils.GetJSONField(result, "tools")
+		if !tools.Exists() {
+			t.Fatal("expected tools to exist")
+		}
+		arr := tools.Array()
+		if len(arr) == 0 {
+			t.Fatal("expected at least one tool")
+		}
+		toolType := arr[0].Get("type").String()
+		if toolType != "web_search_20260209" {
+			t.Errorf("expected tool type to remain web_search_20260209 when remapping is disabled, got %s", toolType)
+		}
+	})
 }
